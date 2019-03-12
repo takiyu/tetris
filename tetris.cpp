@@ -382,14 +382,14 @@ public:
                 for (size_t x = 0; x < m_w; x++) {
                     get(x, 0) = Color::BLACK;
                 }
+                // Check current line again
+                y++;
             }
         }
         return n_erased_lines;
     }
 
     void draw() {
-        ClearScreen();
-
         // Top wall
         printWall(m_w + 2);
         newline();
@@ -458,19 +458,21 @@ bool TryBlockAction(Block& block, const BlockMap& block_map, Action action,
 
 class TetrisApp {
 public:
-    TetrisApp(size_t w, size_t h, double fps = 15.f)
+    TetrisApp(size_t w, size_t h, double fps = 15.f, double event_fps = 1.f)
         : m_block_map(w, h),
           m_rand_block_gen(w / 2, 0),
           m_fps_stabler(fps),
-          m_event_clock(1.f) {}
+          m_event_clock(event_fps) {}
 
     void run() {
         int n_erased_lines = 0;
-        bool next_block = false;
+        bool is_next_block = false;
         std::shared_ptr<Block> block = m_rand_block_gen();
         while (true) {
-            if (next_block) {
-                next_block = false;
+
+            // Generate new block
+            if (is_next_block) {
+                is_next_block = false;
                 block = m_rand_block_gen();
                 // Check whether game over
                 if (!m_block_map.isPuttable(*block)) {
@@ -479,21 +481,27 @@ public:
                 }
             }
 
+            // Backup current map
+            const auto block_map_org = m_block_map;
+            // Put a current block
+            m_block_map.putBlock(*block);
+
+            // Events
             if (m_event_clock.shouldHappen()) {
                 // Go down
-                next_block =
-                    !TryBlockAction(*block, m_block_map, &Block::move, 0, 1);
-                // Check filled lines
+                is_next_block =
+                    !TryBlockAction(*block, block_map_org, &Block::move, 0, 1);
+                // Erase filled lines
                 n_erased_lines += m_block_map.eraseFilledLines();
             }
 
             // Draw screen
-            auto block_map_tmp = m_block_map;
-            block_map_tmp.putBlock(*block);
-            block_map_tmp.draw();
-            if (next_block) {
-                // Restore screen
-                m_block_map = block_map_tmp;
+            ClearScreen();
+            std::cout << "Point: " << n_erased_lines << std::endl;
+            m_block_map.draw();
+            if (!is_next_block) {
+                // Remove the current block
+                m_block_map = block_map_org;
             }
 
             // Check key input
